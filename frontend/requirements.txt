@@ -1,0 +1,2 @@
+# Frontend dependencies are managed via package.json
+# This file is for any additional Python-like requirements if needed
