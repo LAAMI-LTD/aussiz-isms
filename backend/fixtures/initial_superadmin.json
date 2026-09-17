@@ -1,0 +1,20 @@
+[
+  {
+    "model": "accounts.user",
+    "pk": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "fields": {
+      "password": "pbkdf2_sha256$600000$testsuperadmin$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "last_login": null,
+      "is_superuser": true,
+      "username": "superadmin",
+      "first_name": "System",
+      "last_name": "Administrator",
+      "email": "superadmin@aussiz.co.ke",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-09-18T00:00:00Z",
+      "phone_number": "+254700000000",
+      "employee_id": "SYS001"
+    }
+  }
+]
