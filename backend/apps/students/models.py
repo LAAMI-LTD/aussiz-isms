@@ -2,6 +2,8 @@ from django.db import models
 import uuid
 from django.core.validators import RegexValidator
 from apps.accounts.models import User
+from django.utils import timezone
+import re
 
 
 class NextOfKin(models.Model):
@@ -167,9 +169,9 @@ class Student(models.Model):
         from datetime import datetime
         from django.db.models import Max
 
-        now = datetime.now()
-        year = now.strftime('%y')  # 2-digit year
-        month = now.strftime('%b').upper()  # 3-letter month uppercase
+        now = timezone.now()
+        year = now.strftime('%y')  # 2-digit year (e.g., '26' for 2026)
+        month = now.strftime('%b').upper()  # 3-letter month uppercase (e.g., 'SEP')
 
         # Find the latest student ID for this month/year
         prefix = f"SAKE/{month}/{year}/"
@@ -182,8 +184,13 @@ class Student(models.Model):
         if latest_id:
             # Extract the sequence number and increment
             try:
-                sequence = int(latest_id.split('/')[-1]) + 1
-            except (ValueError, IndexError):
+                # Handle case where student_id might not match expected format
+                match = re.search(r'/(\d+)$', latest_id)
+                if match:
+                    sequence = int(match.group(1)) + 1
+                else:
+                    sequence = 1
+            except (ValueError, IndexError, AttributeError):
                 sequence = 1
         else:
             sequence = 1

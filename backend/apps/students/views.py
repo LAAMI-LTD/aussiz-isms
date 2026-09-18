@@ -5,8 +5,11 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Student, NextOfKin, StudentDocument
-from .serializers import StudentSerializer, NextOfKinSerializer, StudentDocumentSerializer
+from .serializers import StudentSerializer, NextOfKinSerializer, StudentDocumentSerializer, StudentRegistrationSerializer
 from apps.accounts.models import User
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StudentViewSet(viewsets.ModelViewSet):
@@ -73,6 +76,30 @@ class StudentViewSet(viewsets.ModelViewSet):
         student.updated_by = request.user
         student.save()
         return Response({'status': 'student deactivated'})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def register(self, request):
+        """
+        Register a new student with automatic student ID generation.
+        Expected to be used by staff (HOD or Super Admin) for new admissions.
+        """
+        # Check if user has permission to register students
+        if not (request.user.is_super_admin or request.user.is_hod):
+            return Response(
+                {'error': 'Permission denied. Only Super Admin or HOD can register students.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = StudentRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        student = serializer.save(created_by=request.user, updated_by=request.user)
+
+        logger.info(f"New student registered: {student.student_id} - {student.get_full_name()} by {request.user.username}")
+
+        return Response(
+            StudentSerializer(student).data,
+            status=status.HTTP_201_CREATED
+        )
 
 
 class NextOfKinViewSet(viewsets.ModelViewSet):

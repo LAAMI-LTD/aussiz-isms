@@ -5,9 +5,12 @@ from . import views
 app_name = 'students'
 
 router = DefaultRouter()
-# Router will be populated when viewsets are created
+router.register(r'', views.StudentViewSet, basename='student')
+router.register(r'next-of-kin', views.NextOfKinViewSet, basename='next-of-kin')
+router.register(r'documents', views.StudentDocumentViewSet, basename='student-document')
 
 urlpatterns = [
     path('', include(router.urls)),
-    # Student endpoints will be added here
+    # Registration endpoint is handled by the ViewSet's register action
+    # Additional specific endpoints can be added here
 ]
