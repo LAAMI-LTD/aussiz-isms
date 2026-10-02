@@ -5,9 +5,11 @@ from . import views
 app_name = 'courses'
 
 router = DefaultRouter()
-# Router will be populated when viewsets are created
+router.register(r'categories', views.CourseCategoryViewSet)
+router.register(r'courses', views.CourseViewSet)
+router.register(r'classes', views.ClassViewSet)
+router.register(r'enrollments', views.EnrollmentViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    # Course endpoints will be added here
 ]

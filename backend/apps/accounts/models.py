@@ -22,6 +22,7 @@ class Role(models.Model):
 
 class User(AbstractUser):
     """Custom User model extending Django's AbstractUser."""
+    email = models.EmailField(blank=True)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     roles = models.ManyToManyField(Role, related_name='users', blank=True)
     phone_number = models.CharField(max_length=20, blank=True)

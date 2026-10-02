@@ -9,6 +9,16 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+# Generated update files
+downloads/
+update/
+updates/
+*.patch
+*.diff
+*.rej
+*.orig
+*.bak
+
 develop-eggs/
 dist/
 downloads/
@@ -32,6 +42,8 @@ share/python-wheels/
 *.manifest
 *.spec
 
+.env
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
@@ -51,7 +63,7 @@ coverage.xml
 .pytest_cache/
 
 # Environments
-.env
+.env*.example
 .venv
 env/
 venv/

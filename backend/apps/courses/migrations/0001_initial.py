@@ -27,7 +27,6 @@ class Migration(migrations.Migration):
             ],
             options={
                 'verbose_name': 'Course Category',
-                'Category'',
                 'verbose_name_plural': 'Course Categories',
                 'db_table': 'course_categories',
                 'ordering': ['name'],

@@ -9,6 +9,7 @@ import re
 class NextOfKin(models.Model):
     """Model for student's next of kin/emergency contact."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey('Student', on_delete=models.CASCADE, related_name='next_of_kin_entries', blank=True, null=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     relationship = models.CharField(max_length=50)
@@ -118,14 +119,12 @@ class Student(models.Model):
     email = models.EmailField()
     address = models.TextField()
 
-    # Next of Kin
-    next_of_kin = models.ForeignKey(NextOfKin, on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
+    # Next of Kin relationship is handled via NextOfKin model's foreign key to Student
 
     # Academic Information
     previous_education = models.TextField(blank=True)
     english_level = models.CharField(max_length=20, choices=ENGLISH_LEVEL_CHOICES, blank=True)
     previous_ielts_attempts = models.PositiveIntegerField(default=0)
-    target_band = models.DecimalField(max_digits=3, decimal_places=1, null=True, blank=True)  # e.g., 6.5
     intended_destination = models.CharField(max_length=100, blank=True)
 
     # Status & Timestamps

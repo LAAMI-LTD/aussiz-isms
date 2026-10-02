@@ -1,6 +1,8 @@
 from django.db import models
 import uuid
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
+from apps.students.models import Student
 
 
 class CourseCategory(models.Model):
@@ -133,3 +135,61 @@ class Class(models.Model):
     def available_spots(self):
         """Get number of available spots."""
         return max(0, self.course.maximum_students - self.student_count)
+
+
+class Enrollment(models.Model):
+    """Model representing a student's enrollment in a specific class."""
+    ENROLLMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('waitlisted', 'Waitlisted'),
+        ('dropped', 'Dropped'),
+        ('completed', 'Completed'),
+    ]
+
+    PAYMENT_STATUS_CHOICES = [
+        ('unpaid', 'Unpaid'),
+        ('partial', 'Partially Paid'),
+        ('paid', 'Paid'),
+        ('refunded', 'Refunded'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='enrollments')
+    class_instance = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='enrollments')
+    enrollment_date = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=ENROLLMENT_STATUS_CHOICES, default='pending')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid')
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='enrollments_created')
+    updated_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='enrollments_updated')
+
+    class Meta:
+        db_table = 'enrollments'
+        verbose_name = 'Enrollment'
+        verbose_name_plural = 'Enrollments'
+        ordering = ['-enrollment_date']
+        unique_together = ['student', 'class_instance']  # Prevent duplicate enrollments
+
+    def __str__(self):
+        return f"{self.student.get_full_name()} enrolled in {self.class_instance}"
+
+    def clean(self):
+        """Validate enrollment model."""
+        # Check if class is still accepting enrollments
+        if self.class_instance.is_full and self.status not in ['dropped', 'completed']:
+            raise ValidationError({
+                'status': f'Class {self.class_instance.name} is at maximum capacity.'
+            })
+
+    def save(self, *args, **kwargs):
+        """Override save to run validation."""
+        self.clean()
+        super().save(*args, **kwargs)
+
+        # Update the class instance's student count if needed
+        # This is handled by the properties in Class model that count active enrollments

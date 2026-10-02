@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'apps.attendance',
     'apps.assessments',
     'apps.ielts',
+    'apps.results',
     'apps.bookings',
     'apps.finance',
     'apps.documents',

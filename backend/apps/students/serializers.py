@@ -32,7 +32,7 @@ class StudentDocumentSerializer(serializers.ModelSerializer):
 
 class StudentSerializer(serializers.ModelSerializer):
     """Serializer for Student model."""
-    next_of_kin = NextOfKinSerializer(read_only=True)
+    next_of_kin = NextOfKinSerializer(many=True, read_only=True, source='next_of_kin_entries')
     documents = StudentDocumentSerializer(many=True, read_only=True)
     created_by = UserSerializer(read_only=True)
     updated_by = UserSerializer(read_only=True)

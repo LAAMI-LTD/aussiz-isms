@@ -229,6 +229,3 @@ aussiz-isms/
 
 ## License
 [To be determined]
-
-## Contact
-AUSSIZ Education and Training

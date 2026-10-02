@@ -31,11 +31,7 @@ class StudentAdmin(admin.ModelAdmin):
         ('Academic Information', {
             'fields': ('previous_education', 'english_level', 'previous_ielts_attempts', 'target_band', 'intended_destination')
         }),
-        ('Next of Kin', {
-            'fields': ('next_of_kin',),
-            'classes': ('collapse',)
-        }),
-        ('Status & Timestamps', {
+                ('Status & Timestamps', {
             'fields': ('status', 'date_created', 'date_updated', 'created_by', 'updated_by'),
             'classes': ('collapse',)
         }),

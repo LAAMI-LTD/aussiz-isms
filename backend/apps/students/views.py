@@ -7,6 +7,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Student, NextOfKin, StudentDocument
 from .serializers import StudentSerializer, NextOfKinSerializer, StudentDocumentSerializer, StudentRegistrationSerializer
 from apps.accounts.models import User
+from apps.accounts.permissions import IsHODOrAbove, IsStudentOwnerOrStaff
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,11 +26,33 @@ class StudentViewSet(viewsets.ModelViewSet):
     ordering_fields = ['date_created', 'student_id', 'last_name']
     ordering = ['-date_created']
 
+    def get_permissions(self):
+        """
+        Instantiate and return the list of permissions that this view requires.
+        """
+        if self.action in ['list', 'retrieve']:
+            # Anyone authenticated can view student list or detail
+            permission_classes = [IsAuthenticated]
+        elif self.action == 'register':
+            # Only HOD and Super Admin can register students
+            permission_classes = [IsHODOrAbove]
+        elif self.action in ['create', 'update', 'partial_update', 'destroy']:
+            # Only HOD and Super Admin can create/update/delete students
+            # (Note: create is handled by our custom register action)
+            permission_classes = [IsHODOrAbove]
+        elif self.action in ['activate', 'deactivate']:
+            # Only HOD and Super Admin can activate/deactivate students
+            permission_classes = [IsHODOrAbove]
+        else:
+            # Default to authenticated users for any other actions
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
     def get_queryset(self):
         """
         Optionally restricts the returned students based on query parameters.
         """
-        queryset = Student.objects.select_related('created_by', 'updated_by').prefetch_related('next_of_kin', 'documents')
+        queryset = Student.objects.select_related('created_by', 'updated_by').prefetch_related('next_of_kin_entries', 'documents')
 
         # Filter by status if provided
         status = self.request.query_params.get('status')
@@ -77,19 +100,23 @@ class StudentViewSet(viewsets.ModelViewSet):
         student.save()
         return Response({'status': 'student deactivated'})
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def create(self, request, *args, **kwargs):
+        """
+        Disable default create endpoint - use /register/ instead.
+        """
+        return Response(
+            {
+                'error': 'Direct student creation is not allowed. Use the /register/ endpoint instead.'
+            },
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+    @action(detail=False, methods=['post'])
     def register(self, request):
         """
         Register a new student with automatic student ID generation.
         Expected to be used by staff (HOD or Super Admin) for new admissions.
         """
-        # Check if user has permission to register students
-        if not (request.user.is_super_admin or request.user.is_hod):
-            return Response(
-                {'error': 'Permission denied. Only Super Admin or HOD can register students.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         serializer = StudentRegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         student = serializer.save(created_by=request.user, updated_by=request.user)
@@ -106,13 +133,35 @@ class NextOfKinViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing next of kin records.
     """
-    queryset = NextOfKin.objects.all()
     serializer_class = NextOfKinSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ['first_name', 'last_name', 'phone_number']
     ordering_fields = ['created_at']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        """
+        Optionally restricts the returned next of kin records based on student_pk from URL.
+        """
+        queryset = NextOfKin.objects.all()
+
+        # If accessing via nested route under a student, filter by that student
+        student_pk = self.kwargs.get('student_pk')
+        if student_pk:
+            queryset = queryset.filter(student_id=student_pk)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        """
+        When creating a next of kin record via nested route, associate it with the parent student.
+        """
+        student_pk = self.kwargs.get('student_pk')
+        if student_pk:
+            serializer.save(student_id=student_pk)
+        else:
+            serializer.save()
 
 
 class StudentDocumentViewSet(viewsets.ModelViewSet):
@@ -128,7 +177,30 @@ class StudentDocumentViewSet(viewsets.ModelViewSet):
     ordering_fields = ['uploaded_at']
     ordering = ['-uploaded_at']
 
+    def get_queryset(self):
+        """
+        Optionally restricts the returned documents based on student_pk from URL.
+        """
+        queryset = StudentDocument.objects.all()
+
+        # If accessing via nested route under a student, filter by that student
+        student_pk = self.kwargs.get('student_pk')
+        if student_pk:
+            queryset = queryset.filter(student_id=student_pk)
+
+        return queryset
+
     def perform_create(self, serializer):
+        """
+        When creating a document record via nested route, associate it with the parent student.
+        """
+        student_pk = self.kwargs.get('student_pk')
+        if student_pk:
+            serializer.save(student_id=student_pk)
+        else:
+            serializer.save()
+
+    def perform_update(self, serializer):
         """
         Set the uploaded_by field to the current user.
         """

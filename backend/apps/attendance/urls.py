@@ -5,9 +5,10 @@ from . import views
 app_name = 'attendance'
 
 router = DefaultRouter()
-# Router will be populated when viewsets are created
+router.register(r'sessions', views.AttendanceSessionViewSet)
+router.register(r'statuses', views.AttendanceStatusViewSet)
+router.register(r'records', views.AttendanceRecordViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    # Attendance endpoints will be added here
 ]

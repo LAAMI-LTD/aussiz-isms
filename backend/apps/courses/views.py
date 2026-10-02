@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from .models import CourseCategory, Course, Class
-from .serializers import CourseCategorySerializer, CourseSerializer, ClassSerializer
+from .models import CourseCategory, Course, Class, Enrollment
+from .serializers import CourseCategorySerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer
 from apps.accounts.models import User
 
 
@@ -55,15 +55,23 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Set the created_by field to the current user.
+        Set the created_by field to the current user and handle category_id.
         """
-        serializer.save(created_by=self.request.user)
+        category_id = self.request.data.get('category_id')
+        if category_id:
+            serializer.save(created_by=self.request.user, category_id=category_id)
+        else:
+            serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
         """
-        Set the updated_by field to the current user.
+        Set the updated_by field to the current user and handle category_id.
         """
-        serializer.save(updated_by=self.request.user)
+        category_id = self.request.data.get('category_id')
+        if category_id:
+            serializer.save(updated_by=self.request.user, category_id=category_id)
+        else:
+            serializer.save(updated_by=self.request.user)
 
     @action(detail=True, methods=['get'])
     def classes(self, request, pk=None):
@@ -131,15 +139,23 @@ class ClassViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Set the created_by field to the current user.
+        Set the created_by field to the current user and handle course_id.
         """
-        serializer.save(created_by=self.request.user)
+        course_id = self.request.data.get('course_id')
+        if course_id:
+            serializer.save(created_by=self.request.user, course_id=course_id)
+        else:
+            serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
         """
-        Set the updated_by field to the current user.
+        Set the updated_by field to the current user and handle course_id.
         """
-        serializer.save(updated_by=self.request.user)
+        course_id = self.request.data.get('course_id')
+        if course_id:
+            serializer.save(updated_by=self.request.user, course_id=course_id)
+        else:
+            serializer.save(updated_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
@@ -176,3 +192,129 @@ class ClassViewSet(viewsets.ModelViewSet):
         class_obj.updated_by = request.user
         class_obj.save()
         return Response({'status': 'class cancelled'})
+
+
+class EnrollmentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing student enrollments.
+    """
+    queryset = Enrollment.objects.all()
+    serializer_class = EnrollmentSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['student', 'class_instance', 'status', 'payment_status', 'is_active']
+    search_fields = ['student__first_name', 'student__last_name', 'student__student_id',
+                     'class_instance__name', 'class_instance__course__name', 'class_instance__course__course_code']
+    ordering_fields = ['enrollment_date', 'amount_paid']
+    ordering = ['-enrollment_date']
+
+    def get_queryset(self):
+        """
+        Optionally restricts the returned enrollments based on query parameters.
+        """
+        queryset = Enrollment.objects.select_related(
+            'student', 'class_instance', 'class_instance__course',
+            'created_by', 'updated_by'
+        )
+
+        # Filter by course if provided
+        course_id = self.request.query_params.get('course')
+        if course_id:
+            queryset = queryset.filter(class_instance__course_id=course_id)
+
+        # Filter by date range if provided
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(enrollment_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(enrollment_date__lte=end_date)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        """
+        Set the created_by field to the current user and handle student_id and class_instance_id.
+        """
+        student_id = self.request.data.get('student_id')
+        class_instance_id = self.request.data.get('class_instance_id')
+        if student_id and class_instance_id:
+            serializer.save(created_by=self.request.user, student_id=student_id, class_instance_id=class_instance_id)
+        else:
+            serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        """
+        Set the updated_by field to the current user and handle student_id and class_instance_id.
+        """
+        student_id = self.request.data.get('student_id')
+        class_instance_id = self.request.data.get('class_instance_id')
+        if student_id and class_instance_id:
+            serializer.save(updated_by=self.request.user, student_id=student_id, class_instance_id=class_instance_id)
+        else:
+            serializer.save(updated_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        """
+        Confirm a pending enrollment.
+        """
+        enrollment = self.get_object()
+        if enrollment.status != 'pending':
+            return Response(
+                {'error': 'Only pending enrollments can be confirmed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        enrollment.status = 'confirmed'
+        enrollment.updated_by = request.user
+        enrollment.save()
+        return Response({'status': 'enrollment confirmed'})
+
+    @action(detail=True, methods=['post'])
+    def drop(self, request, pk=None):
+        """
+        Drop an enrollment.
+        """
+        enrollment = self.get_object()
+        if enrollment.status in ['completed', 'dropped']:
+            return Response(
+                {'error': 'Cannot drop a completed or already dropped enrollment.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        enrollment.status = 'dropped'
+        enrollment.is_active = False
+        enrollment.updated_by = request.user
+        enrollment.save()
+        return Response({'status': 'enrollment dropped'})
+
+    @action(detail=True, methods=['post'])
+    def record_payment(self, request, pk=None):
+        """
+        Record a payment for an enrollment.
+        """
+        enrollment = self.get_object()
+        amount = request.data.get('amount', 0)
+        try:
+            amount = float(amount)
+            if amount < 0:
+                raise ValueError
+        except ValueError:
+            return Response(
+                {'error': 'Invalid payment amount.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        enrollment.amount_paid += amount
+        if enrollment.amount_paid >= enrollment.class_instance.course.fee:
+            enrollment.payment_status = 'paid'
+        elif enrollment.amount_paid > 0:
+            enrollment.payment_status = 'partial'
+        else:
+            enrollment.payment_status = 'unpaid'
+        enrollment.updated_by = request.user
+        enrollment.save()
+        return Response({
+            'status': 'payment recorded',
+            'amount_paid': enrollment.amount_paid,
+            'payment_status': enrollment.payment_status
+        })
